@@ -1,0 +1,47 @@
+services:
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "9999:9999"
+    depends_on:
+      api1:
+        condition: service_healthy
+      api2:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: "30MB"
+
+  api1:
+    image: marcelovitor/rinha-java:latest
+    cpuset: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9999/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: "150MB"
+
+  api2:
+    image: marcelovitor/rinha-java:latest
+    cpuset: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9999/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: "150MB"
