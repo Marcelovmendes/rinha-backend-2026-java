@@ -14,24 +14,30 @@ public final class IvfIndex {
     private static final int   NPROBE        = 24;
     private static final int   NPROBE_GRAY   = 8;
     private static final int   TOP_K         = 5;
+    private static final int   RERANK_N      = 50;
     private static final int   M             = ProductQuantizer.M;
     private static final int   CODEBOOK_SIZE = ProductQuantizer.CODEBOOK_SIZE;
     private static final int   SUB_D         = ProductQuantizer.SUB_D;
     private static final float INF           = Float.MAX_VALUE;
+    private static final float INV_127       = 1f / 127f;
     private static final int   BITS_PER_BYTE = 8;
 
     private final float[]          centroidsFlat;
     private final int[]            offsets;
     private final int[]            flatIds;
     private final byte[]           flatCodes;
+    private final byte[]           int8Vectors;
     private final byte[]           labels;
     private final ProductQuantizer pq;
 
-    private IvfIndex(float[] centroidsFlat, int[] offsets, int[] flatIds, byte[] flatCodes, byte[] labels, ProductQuantizer pq) {
+    private IvfIndex(float[] centroidsFlat, int[] offsets, int[] flatIds,
+                     byte[] flatCodes, byte[] int8Vectors, byte[] labels,
+                     ProductQuantizer pq) {
         this.centroidsFlat = centroidsFlat;
         this.offsets       = offsets;
         this.flatIds       = flatIds;
         this.flatCodes     = flatCodes;
+        this.int8Vectors   = int8Vectors;
         this.labels        = labels;
         this.pq            = pq;
     }
@@ -43,15 +49,16 @@ public final class IvfIndex {
         int              n             = offsets[K];
         int[]            flatIds       = readInts(dataDir.resolve("cluster_ids.bin"), n);
         byte[]           flatCodes     = Files.readAllBytes(dataDir.resolve("cluster_codes.bin"));
+        byte[]           int8Vectors   = Files.readAllBytes(dataDir.resolve("vectors_int8.bin"));
         byte[]           labels        = expandLabels(Files.readAllBytes(dataDir.resolve("labels.bin")), n);
-        return new IvfIndex(centroidsFlat, offsets, flatIds, flatCodes, labels, pq);
+        return new IvfIndex(centroidsFlat, offsets, flatIds, flatCodes, int8Vectors, labels, pq);
     }
 
     public float computeFraudScore(float[] query) {
-        return (float) countFraudInTopK(query) / TOP_K;
+        return (float) findTopKFraudCount(query) / TOP_K;
     }
 
-    private int countFraudInTopK(float[] query) {
+    private int findTopKFraudCount(float[] query) {
         float[] probeDist = new float[NPROBE];
         int[]   probeId   = new int[NPROBE];
         Arrays.fill(probeDist, INF);
@@ -66,10 +73,10 @@ public final class IvfIndex {
         float[][] adcTable = new float[M][CODEBOOK_SIZE];
         pq.buildAdcTable(query, adcTable);
 
-        float[] topDist = new float[TOP_K];
-        int[]   topId   = new int[TOP_K];
-        Arrays.fill(topDist, INF);
-        Arrays.fill(topId, -1);
+        float[] pqDist = new float[RERANK_N];
+        int[]   pqPos  = new int[RERANK_N];
+        Arrays.fill(pqDist, INF);
+        Arrays.fill(pqPos, -1);
 
         for (int p = 0; p < NPROBE; p++) {
             int cluster = probeId[p];
@@ -77,25 +84,63 @@ public final class IvfIndex {
             int to      = offsets[cluster + 1];
             for (int i = from; i < to; i++) {
                 float dist = pq.adcDistance(adcTable, flatCodes, i * M);
-                if (dist < topDist[TOP_K - 1]) {
-                    insertSorted(topId, topDist, flatIds[i], dist);
+                if (dist < pqDist[RERANK_N - 1]) {
+                    insertSorted(pqPos, pqDist, i, dist);
                 }
             }
 
             if (p == NPROBE_GRAY - 1) {
-                int fc = countFraud(topId);
-                if (fc <= 1 || fc >= TOP_K - 1) return fc;
+                int fc = countFraudInPqTopK(pqPos);
+                if (fc <= 1 || fc >= TOP_K - 1) {
+                    return rerankAndCount(query, pqPos);
+                }
             }
         }
-        return countFraud(topId);
+        return rerankAndCount(query, pqPos);
     }
 
-    private int countFraud(int[] topId) {
+    private int countFraudInPqTopK(int[] pqPos) {
         int fc = 0;
-        for (int id : topId) {
-            if (id >= 0 && labels[id] == 1) fc++;
+        for (int j = 0; j < TOP_K; j++) {
+            int flatPos = pqPos[j];
+            if (flatPos < 0) continue;
+            if (labels[flatIds[flatPos]] == 1) fc++;
         }
         return fc;
+    }
+
+    private int rerankAndCount(float[] query, int[] pqPos) {
+        float[] rerankDist = new float[TOP_K];
+        int[]   rerankPos  = new int[TOP_K];
+        Arrays.fill(rerankDist, INF);
+        Arrays.fill(rerankPos, -1);
+
+        for (int j = 0; j < RERANK_N; j++) {
+            int flatPos = pqPos[j];
+            if (flatPos < 0) break;
+            float dist = exactSquaredDistInt8(query, flatPos);
+            if (dist < rerankDist[TOP_K - 1]) {
+                insertSorted(rerankPos, rerankDist, flatPos, dist);
+            }
+        }
+
+        int fc = 0;
+        for (int flatPos : rerankPos) {
+            if (flatPos < 0) continue;
+            if (labels[flatIds[flatPos]] == 1) fc++;
+        }
+        return fc;
+    }
+
+    private float exactSquaredDistInt8(float[] query, int flatPos) {
+        int   offset = flatPos * DIMENSIONS;
+        float sum    = 0f;
+        for (int d = 0; d < DIMENSIONS; d++) {
+            float v    = int8Vectors[offset + d] * INV_127;
+            float diff = query[d] - v;
+            sum += diff * diff;
+        }
+        return sum;
     }
 
     private static void insertSorted(int[] ids, float[] dists, int id, float dist) {
