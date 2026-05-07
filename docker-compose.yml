@@ -1,47 +1,43 @@
 services:
-  nginx:
-    image: nginx:alpine
+  haproxy:
+    image: haproxy:alpine
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - sockets:/sockets
     ports:
       - "9999:9999"
     depends_on:
-      api1:
-        condition: service_healthy
-      api2:
-        condition: service_healthy
+      - api1
+      - api2
     deploy:
       resources:
         limits:
-          cpus: "0.2"
-          memory: "30MB"
+          cpus: "0.1"
+          memory: "40MB"
 
   api1:
-    image: marcelovitor/rinha-java:latest
-    cpuset: "1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9999/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
+    image: marcelocortess/rinha-java:latest
+    volumes:
+      - sockets:/sockets
+    environment:
+      SERVER_SOCKET_PATH: /sockets/api1.sock
     deploy:
       resources:
         limits:
-          cpus: "0.4"
-          memory: "150MB"
+          cpus: "0.45"
+          memory: "155MB"
 
   api2:
-    image: marcelovitor/rinha-java:latest
-    cpuset: "3"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9999/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
+    image: marcelocortess/rinha-java:latest
+    volumes:
+      - sockets:/sockets
+    environment:
+      SERVER_SOCKET_PATH: /sockets/api2.sock
     deploy:
       resources:
         limits:
-          cpus: "0.4"
-          memory: "150MB"
+          cpus: "0.45"
+          memory: "155MB"
+
+volumes:
+  sockets:

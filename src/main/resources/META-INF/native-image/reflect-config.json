@@ -1,0 +1,38 @@
+[
+  {
+    "name": "dev.marcelovitor.rinha.model.TransactionPayload",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "dev.marcelovitor.rinha.model.TransactionData",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "dev.marcelovitor.rinha.model.CustomerData",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "dev.marcelovitor.rinha.model.MerchantData",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "dev.marcelovitor.rinha.model.TerminalData",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "dev.marcelovitor.rinha.model.LastTransactionData",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  }
+]

@@ -1,0 +1,9 @@
+target/
+resources/references.json.gz
+test/test-data.json
+test/results.json
+data/
+.idea/
+.claude/
+*.md
+!README.md
