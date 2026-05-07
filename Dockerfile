@@ -26,4 +26,4 @@ FROM scratch
 COPY --from=native /app/rinha-runner /rinha-runner
 COPY --from=builder /data/ /data/
 EXPOSE 9999
-ENTRYPOINT ["/rinha-runner"]
+ENTRYPOINT ["/rinha-runner", "-Xmx140m"]

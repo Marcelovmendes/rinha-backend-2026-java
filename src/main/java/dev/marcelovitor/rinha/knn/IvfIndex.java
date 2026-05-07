@@ -19,25 +19,25 @@ public final class IvfIndex {
     private static final int   CODEBOOK_SIZE = ProductQuantizer.CODEBOOK_SIZE;
     private static final int   SUB_D         = ProductQuantizer.SUB_D;
     private static final float INF           = Float.MAX_VALUE;
-    private static final float INV_127       = 1f / 127f;
+    private static final float INV_32767     = 1f / 32767f;
     private static final int   BITS_PER_BYTE = 8;
 
     private final float[]          centroidsFlat;
     private final int[]            offsets;
     private final int[]            flatIds;
     private final byte[]           flatCodes;
-    private final byte[]           int8Vectors;
+    private final short[]          int16Vectors;
     private final byte[]           labels;
     private final ProductQuantizer pq;
 
     private IvfIndex(float[] centroidsFlat, int[] offsets, int[] flatIds,
-                     byte[] flatCodes, byte[] int8Vectors, byte[] labels,
+                     byte[] flatCodes, short[] int16Vectors, byte[] labels,
                      ProductQuantizer pq) {
         this.centroidsFlat = centroidsFlat;
         this.offsets       = offsets;
         this.flatIds       = flatIds;
         this.flatCodes     = flatCodes;
-        this.int8Vectors   = int8Vectors;
+        this.int16Vectors  = int16Vectors;
         this.labels        = labels;
         this.pq            = pq;
     }
@@ -49,9 +49,9 @@ public final class IvfIndex {
         int              n             = offsets[K];
         int[]            flatIds       = readInts(dataDir.resolve("cluster_ids.bin"), n);
         byte[]           flatCodes     = Files.readAllBytes(dataDir.resolve("cluster_codes.bin"));
-        byte[]           int8Vectors   = Files.readAllBytes(dataDir.resolve("vectors_int8.bin"));
+        short[]          int16Vectors  = readShorts(dataDir.resolve("vectors_int16.bin"), n * DIMENSIONS);
         byte[]           labels        = expandLabels(Files.readAllBytes(dataDir.resolve("labels.bin")), n);
-        return new IvfIndex(centroidsFlat, offsets, flatIds, flatCodes, int8Vectors, labels, pq);
+        return new IvfIndex(centroidsFlat, offsets, flatIds, flatCodes, int16Vectors, labels, pq);
     }
 
     public float computeFraudScore(float[] query) {
@@ -118,7 +118,7 @@ public final class IvfIndex {
         for (int j = 0; j < RERANK_N; j++) {
             int flatPos = pqPos[j];
             if (flatPos < 0) break;
-            float dist = exactSquaredDistInt8(query, flatPos);
+            float dist = exactSquaredDistInt16(query, flatPos);
             if (dist < rerankDist[TOP_K - 1]) {
                 insertSorted(rerankPos, rerankDist, flatPos, dist);
             }
@@ -132,11 +132,11 @@ public final class IvfIndex {
         return fc;
     }
 
-    private float exactSquaredDistInt8(float[] query, int flatPos) {
+    private float exactSquaredDistInt16(float[] query, int flatPos) {
         int   offset = flatPos * DIMENSIONS;
         float sum    = 0f;
         for (int d = 0; d < DIMENSIONS; d++) {
-            float v    = int8Vectors[offset + d] * INV_127;
+            float v    = int16Vectors[offset + d] * INV_32767;
             float diff = query[d] - v;
             sum += diff * diff;
         }
@@ -197,6 +197,12 @@ public final class IvfIndex {
     private static int[] readInts(Path file, int expected) throws IOException {
         int[] out = new int[expected];
         ByteBuffer.wrap(Files.readAllBytes(file)).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().get(out);
+        return out;
+    }
+
+    private static short[] readShorts(Path file, int expected) throws IOException {
+        short[] out = new short[expected];
+        ByteBuffer.wrap(Files.readAllBytes(file)).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(out);
         return out;
     }
 }

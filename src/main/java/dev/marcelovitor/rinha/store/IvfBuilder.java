@@ -24,7 +24,7 @@ public final class IvfBuilder {
         Path clusterOffsetsFile = dataDir.resolve("cluster_offsets.bin");
         Path clusterIdsFile     = dataDir.resolve("cluster_ids.bin");
         Path clusterCodesFile   = dataDir.resolve("cluster_codes.bin");
-        Path vectorsInt8File    = dataDir.resolve("vectors_int8.bin");
+        Path vectorsInt16File   = dataDir.resolve("vectors_int16.bin");
 
         long startMs = System.currentTimeMillis();
 
@@ -57,9 +57,9 @@ public final class IvfBuilder {
         int[] offsets = new int[CLUSTERS + 1];
         for (int c = 0; c < CLUSTERS; c++) offsets[c + 1] = offsets[c] + idsByCluster[c].length;
 
-        int[]  flatIds     = new int[n];
-        byte[] flatCodes   = new byte[n * ProductQuantizer.M];
-        byte[] int8Vectors = new byte[n * DIMENSIONS];
+        int[]   flatIds      = new int[n];
+        byte[]  flatCodes    = new byte[n * ProductQuantizer.M];
+        short[] int16Vectors = new short[n * DIMENSIONS];
         for (int c = 0; c < CLUSTERS; c++) {
             int   base = offsets[c];
             int[] ids  = idsByCluster[c];
@@ -69,9 +69,9 @@ public final class IvfBuilder {
                 float[] v       = vectors[id];
                 flatIds[flatPos] = id;
                 System.arraycopy(allCodes[id], 0, flatCodes, flatPos * ProductQuantizer.M, ProductQuantizer.M);
-                int int8Off = flatPos * DIMENSIONS;
+                int int16Off = flatPos * DIMENSIONS;
                 for (int d = 0; d < DIMENSIONS; d++) {
-                    int8Vectors[int8Off + d] = quantizeInt8(v[d]);
+                    int16Vectors[int16Off + d] = quantizeInt16(v[d]);
                 }
             }
         }
@@ -83,17 +83,23 @@ public final class IvfBuilder {
         writeInts(clusterOffsetsFile, offsets);
         writeInts(clusterIdsFile, flatIds);
         Files.write(clusterCodesFile, flatCodes);
-        Files.write(vectorsInt8File, int8Vectors);
+        writeShorts(vectorsInt16File, int16Vectors);
 
         Files.deleteIfExists(referencesFile);
 
-        printSummary(idsByCluster, flatIds, flatCodes, int8Vectors, n, startMs);
+        printSummary(idsByCluster, flatIds, flatCodes, int16Vectors, n, startMs);
     }
 
-    private static byte quantizeInt8(float v) {
+    private static short quantizeInt16(float v) {
         if (v < -1f) v = -1f;
         if (v >  1f) v =  1f;
-        return (byte) Math.round(v * 127f);
+        return (short) Math.round(v * 32767f);
+    }
+
+    private static void writeShorts(Path file, short[] arr) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(arr.length * Short.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        buf.asShortBuffer().put(arr);
+        Files.write(file, buf.array());
     }
 
     private static float[][] loadVectors(Path file) throws IOException {
@@ -140,7 +146,7 @@ public final class IvfBuilder {
         Files.write(file, buf.array());
     }
 
-    private static void printSummary(int[][] idsByCluster, int[] flatIds, byte[] flatCodes, byte[] int8Vectors, int n, long startMs) {
+    private static void printSummary(int[][] idsByCluster, int[] flatIds, byte[] flatCodes, short[] int16Vectors, int n, long startMs) {
         long elapsed = System.currentTimeMillis() - startMs;
         int  min     = Integer.MAX_VALUE;
         int  max     = 0;
@@ -155,7 +161,7 @@ public final class IvfBuilder {
         System.out.printf("cluster_offsets.bin : %,d bytes%n", (CLUSTERS + 1) * Integer.BYTES);
         System.out.printf("cluster_ids.bin     : %,d bytes%n", flatIds.length * Integer.BYTES);
         System.out.printf("cluster_codes.bin   : %,d bytes%n", flatCodes.length);
-        System.out.printf("vectors_int8.bin    : %,d bytes%n", int8Vectors.length);
+        System.out.printf("vectors_int16.bin   : %,d bytes%n", int16Vectors.length * Short.BYTES);
         System.out.printf("cluster sizes       : min=%,d  max=%,d  avg=%,d%n", min, max, n / CLUSTERS);
     }
 }
