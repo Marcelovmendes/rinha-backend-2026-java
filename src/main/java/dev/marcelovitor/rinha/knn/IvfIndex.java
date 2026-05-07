@@ -11,7 +11,7 @@ public final class IvfIndex {
 
     private static final int   DIMENSIONS    = 14;
     private static final int   K             = 1024;
-    private static final int   NPROBE        = 24;
+    private static final int   NPROBE        = 14;
     private static final int   NPROBE_GRAY   = 8;
     private static final int   TOP_K         = 5;
     private static final int   RERANK_N      = 100;

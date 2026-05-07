@@ -2,6 +2,8 @@ target/
 resources/references.json.gz
 test/test-data.json
 test/results.json
+test/results_*.json
+scripts/
 data/
 .idea/
 .claude/
