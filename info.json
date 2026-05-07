@@ -1,0 +1,7 @@
+{
+    "participants": ["Marcelo Vitor Mendes"],
+    "social": ["https://github.com/Marcelovmendes"],
+    "source-code-repo": "https://github.com/Marcelovmendes/rinha-backend-2026-java",
+    "stack": ["java", "graalvm", "haproxy"],
+    "open_to_work": true
+}
