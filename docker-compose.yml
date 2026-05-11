@@ -12,11 +12,20 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.26"
-          memory: "30MB"
+          cpus: "0.10"
+          memory: "20MB"
 
   api1:
     image: marcelocortess/rinha-java:latest
+    command:
+      - "-Divf.nprobe=1"
+      - "-Dknn.slots=1"
+      - "-Dserver.backlog=8192"
+      - "-Dserver.inbuf=768"
+      - "-Dserver.outbuf=512"
+      - "-Dserver.header.max=2048"
+      - "-Dserver.body.max=8192"
+      - "-Dstartup.warmup.searches=20000"
     volumes:
       - sockets:/sockets
     environment:
@@ -24,11 +33,20 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.37"
-          memory: "160MB"
+          cpus: "0.45"
+          memory: "165MB"
 
   api2:
     image: marcelocortess/rinha-java:latest
+    command:
+      - "-Divf.nprobe=1"
+      - "-Dknn.slots=1"
+      - "-Dserver.backlog=8192"
+      - "-Dserver.inbuf=768"
+      - "-Dserver.outbuf=512"
+      - "-Dserver.header.max=2048"
+      - "-Dserver.body.max=8192"
+      - "-Dstartup.warmup.searches=20000"
     volumes:
       - sockets:/sockets
     environment:
@@ -36,8 +54,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.37"
-          memory: "160MB"
+          cpus: "0.45"
+          memory: "165MB"
 
 volumes:
   sockets:
