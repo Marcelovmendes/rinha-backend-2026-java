@@ -1,28 +1,22 @@
-FROM maven:3.9-eclipse-temurin-25 AS builder
-WORKDIR /app
-COPY pom.xml .
-RUN mvn dependency:go-offline -B -q
-COPY src ./src
-RUN mvn package -DskipTests -B -q
-COPY resources/ /resources/
-RUN java -Xmx2g -cp target/rinha.jar:target/dependency/* \
-      dev.marcelovitor.rinha.store.DataPreprocessor \
-      /resources/references.json.gz \
-      /data/
+FROM ghcr.io/graalvm/native-image-community:25 AS build
+WORKDIR /src
 
-FROM ghcr.io/graalvm/native-image-community:25 AS native
-WORKDIR /app
-COPY --from=builder /app/target/rinha.jar .
-COPY --from=builder /app/target/dependency ./dependency
-RUN native-image \
-      --no-fallback \
-      -O3 \
-      -H:Name=rinha-runner \
-      -jar rinha.jar \
-      -cp ".:dependency/*"
+COPY src ./src
+COPY scripts ./scripts
+COPY resources/references.json.gz ./resources/references.json.gz
+
+RUN chmod +x scripts/build-index.sh \
+    && rm -rf out app.jar /app/rinha-native resources/index.bin \
+    && find src/main/java -name '*.java' > sources.txt \
+    && javac --release 25 -d out @sources.txt \
+    && jar --create --file app.jar --main-class dev.marcelovitor.rinha.RinhaBackendApplication -C out . \
+    && ./scripts/build-index.sh resources/references.json.gz resources/index.bin \
+    && native-image --no-fallback -O3 -march=x86-64-v3 -jar app.jar -o /app/rinha-native
 
 FROM debian:bookworm-slim
-COPY --from=native /app/rinha-runner /rinha-runner
-COPY --from=builder /data/ /data/
-EXPOSE 9999
-ENTRYPOINT ["/rinha-runner", "-Xmx140m"]
+WORKDIR /app
+
+COPY --from=build /app/rinha-native /app/rinha-native
+COPY --from=build /src/resources/index.bin /app/resources/index.bin
+
+ENTRYPOINT ["/app/rinha-native"]

@@ -7,11 +7,12 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-public final class IvfIndex {
+public final class IvfIndex implements FraudDetector {
 
     public static final  int   TOP_K           = 5;
     private static final int   DIMS            = IndexHeader.DIMS;
 
+    private final int     n;
     private final int     k;
     private final int[]   offsets;
     private final short[] centroidsFlat;
@@ -21,8 +22,9 @@ public final class IvfIndex {
     private final byte[]  labels;
     private final int[]   nonEmptyClusters;
 
-    private IvfIndex(int k, int[] offsets, short[] centroidsFlat, short[] bboxMinFlat,
+    private IvfIndex(int n, int k, int[] offsets, short[] centroidsFlat, short[] bboxMinFlat,
                      short[] bboxMaxFlat, short[] rowsFlat, byte[] labels, int[] nonEmptyClusters) {
+        this.n                = n;
         this.k                = k;
         this.offsets          = offsets;
         this.centroidsFlat    = centroidsFlat;
@@ -51,11 +53,17 @@ public final class IvfIndex {
             byte[]  labels        = readBytes(ch, chunk, n);
 
             int[] nonEmptyClusters = collectNonEmpty(offsets, k);
-            return new IvfIndex(k, offsets, centroidsFlat, bboxMinFlat, bboxMaxFlat, rowsFlat, labels, nonEmptyClusters);
+            return new IvfIndex(n, k, offsets, centroidsFlat, bboxMinFlat, bboxMaxFlat, rowsFlat, labels, nonEmptyClusters);
         }
     }
 
-    public int countFraudsInTop5(short[] q) {
+    @Override
+    public int size() {
+        return n;
+    }
+
+    @Override
+    public int topKFraudCount(short[] q) {
         Top5 top    = new Top5();
         int  chosen = bestCluster(q);
         scanCluster(chosen, q, top);

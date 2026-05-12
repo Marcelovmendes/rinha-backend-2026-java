@@ -2,11 +2,11 @@ package dev.marcelovitor.rinha.store;
 
 import dev.marcelovitor.rinha.knn.IndexHeader;
 import dev.marcelovitor.rinha.knn.KMeans;
+import dev.marcelovitor.rinha.knn.ReferenceCatalog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -17,21 +17,23 @@ public final class IvfBuilder {
 
     private static final int  DIMS             = IndexHeader.DIMS;
     private static final int  SCALE            = IndexHeader.SCALE;
-    private static final int  CLUSTERS         = 256;
-    private static final int  MAX_CLUSTER_SIZE = 5000;
-    private static final long SEED             = 42L;
-    private static final int  BITS_PER_BYTE    = 8;
+    private static final int  CLUSTERS         = Integer.getInteger("ivf.clusters", 256);
+    private static final int  MAX_CLUSTER_SIZE = Integer.getInteger("ivf.maxClusterSize", 5000);
+    private static final long SEED             = Long.getLong("ivf.seed", 42L);
 
-    public static void build(Path dataDir) throws IOException {
-        Path referencesFile = dataDir.resolve("references.bin");
-        Path labelsFile     = dataDir.resolve("labels.bin");
-        Path indexFile      = dataDir.resolve("index.bin");
+    public static void main(String[] args) throws IOException {
+        Path refs = args.length > 0 ? Path.of(args[0]) : Path.of("resources/references.json.gz");
+        Path out  = args.length > 1 ? Path.of(args[1]) : Path.of("resources/index.bin");
+        build(refs, out);
+    }
 
+    public static void build(Path refsFile, Path outFile) throws IOException {
         long startMs = System.currentTimeMillis();
 
-        short[][] vectors = loadAndQuantize(referencesFile);
-        int       n       = vectors.length;
-        byte[]    labels  = loadLabels(labelsFile, n);
+        ReferenceCatalog catalog = ReferenceCatalog.load(refsFile);
+        int       n       = catalog.size();
+        short[][] vectors = transpose(catalog, n);
+        byte[]    labels  = Arrays.copyOf(catalog.labels(), n);
         System.out.printf("IVF: loaded %,d vectors%n", n);
         System.out.flush();
 
@@ -56,41 +58,19 @@ public final class IvfBuilder {
         System.out.printf("IVF: layout done in %,d ms%n", System.currentTimeMillis() - t3);
         System.out.flush();
 
-        writeIndex(indexFile, layout);
-        Files.deleteIfExists(referencesFile);
-        Files.deleteIfExists(labelsFile);
+        Files.createDirectories(outFile.toAbsolutePath().getParent());
+        writeIndex(outFile, layout);
 
         printSummary(layout, finals, startMs);
     }
 
-    private static short[][] loadAndQuantize(Path file) throws IOException {
-        byte[]      bytes = Files.readAllBytes(file);
-        FloatBuffer fb    = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        int         n     = fb.limit() / DIMS;
-        short[][]   out   = new short[n][DIMS];
-        float[]     row   = new float[DIMS];
-        for (int i = 0; i < n; i++) {
-            fb.get(row);
-            for (int d = 0; d < DIMS; d++) out[i][d] = quantize(row[d]);
+    private static short[][] transpose(ReferenceCatalog catalog, int n) {
+        short[][] out = new short[n][DIMS];
+        for (int d = 0; d < DIMS; d++) {
+            short[] src = catalog.dim(d);
+            for (int i = 0; i < n; i++) out[i][d] = src[i];
         }
         return out;
-    }
-
-    private static byte[] loadLabels(Path file, int n) throws IOException {
-        byte[] bitmap = Files.readAllBytes(file);
-        byte[] out    = new byte[n];
-        for (int i = 0; i < n; i++) {
-            int byteIdx = i / BITS_PER_BYTE;
-            int bitOff  = BITS_PER_BYTE - 1 - (i % BITS_PER_BYTE);
-            out[i]      = (byte) ((bitmap[byteIdx] >> bitOff) & 1);
-        }
-        return out;
-    }
-
-    private static short quantize(float v) {
-        if (v == -1f) return (short) -SCALE;
-        double clamped = Math.clamp((double) v, 0.0, 1.0);
-        return (short) Math.round(clamped * SCALE);
     }
 
     private static List<FinalCluster> splitOversize(short[][] vectors, short[][] coarseCentroids, int[][] coarseIds) {
