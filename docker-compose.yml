@@ -16,7 +16,7 @@ services:
           memory: "20MB"
 
   api1:
-    image: marcelocortess/rinha-java:ivf-bbox-v16-test
+    image: marcelocortess/rinha-java:ivf-bbox-v17-test
     command:
       - "-Divf.nprobe=1"
       - "-Dstartup.warmup.searches=20000"
@@ -31,7 +31,7 @@ services:
           memory: "165MB"
 
   api2:
-    image: marcelocortess/rinha-java:ivf-bbox-v16-test
+    image: marcelocortess/rinha-java:ivf-bbox-v17-test
     command:
       - "-Divf.nprobe=1"
       - "-Dstartup.warmup.searches=20000"
