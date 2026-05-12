@@ -7,7 +7,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-public final class IvfIndex implements FraudDetector {
+public final class IvfIndex {
 
     public static final  int   TOP_K           = 5;
     private static final int   DIMS            = IndexHeader.DIMS;
@@ -57,12 +57,10 @@ public final class IvfIndex implements FraudDetector {
         }
     }
 
-    @Override
     public int size() {
         return n;
     }
 
-    @Override
     public int topKFraudCount(short[] q) {
         Top5 top    = new Top5();
         int  chosen = bestCluster(q);

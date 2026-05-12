@@ -31,7 +31,7 @@ public final class IvfBuilder {
         long startMs = System.currentTimeMillis();
 
         ReferenceCatalog catalog = ReferenceCatalog.load(refsFile);
-        int       n       = catalog.size();
+        int       n       = catalog.count();
         short[][] vectors = transpose(catalog, n);
         byte[]    labels  = Arrays.copyOf(catalog.labels(), n);
         System.out.printf("IVF: loaded %,d vectors%n", n);

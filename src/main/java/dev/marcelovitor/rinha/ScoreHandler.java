@@ -1,6 +1,5 @@
 package dev.marcelovitor.rinha;
 
-import dev.marcelovitor.rinha.knn.FraudDetector;
 import dev.marcelovitor.rinha.knn.IvfIndex;
 import dev.marcelovitor.rinha.knn.Vectorizer;
 
@@ -14,12 +13,12 @@ public final class ScoreHandler implements RequestHandler {
     private static final byte[][] RESPONSES       = buildResponses();
     private static final byte[]   ERROR_RESPONSE  = buildHttpResponse(false, "0.0");
 
-    private final Vectorizer    vectorizer;
-    private final FraudDetector detector;
+    private final Vectorizer vectorizer;
+    private final IvfIndex   index;
 
-    public ScoreHandler(Vectorizer vectorizer, FraudDetector detector) {
+    public ScoreHandler(Vectorizer vectorizer, IvfIndex index) {
         this.vectorizer = vectorizer;
-        this.detector   = detector;
+        this.index      = index;
     }
 
     @Override
@@ -27,7 +26,7 @@ public final class ScoreHandler implements RequestHandler {
         try {
             short[] q = new short[QUERY_DIMS];
             vectorizer.vectorize(body, offset, length, q);
-            int frauds = detector.topKFraudCount(q);
+            int frauds = index.topKFraudCount(q);
             return RESPONSES[frauds];
         } catch (Exception e) {
             return ERROR_RESPONSE;
