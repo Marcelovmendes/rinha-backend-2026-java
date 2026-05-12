@@ -16,7 +16,7 @@ services:
           memory: "20MB"
 
   api1:
-    image: marcelocortess/rinha-java:ivf-bbox-v12-test
+    image: marcelocortess/rinha-java:ivf-bbox-v13-test
     command:
       - "-Divf.nprobe=1"
       - "-Dknn.slots=1"
@@ -37,7 +37,7 @@ services:
           memory: "165MB"
 
   api2:
-    image: marcelocortess/rinha-java:ivf-bbox-v12-test
+    image: marcelocortess/rinha-java:ivf-bbox-v13-test
     command:
       - "-Divf.nprobe=1"
       - "-Dknn.slots=1"
