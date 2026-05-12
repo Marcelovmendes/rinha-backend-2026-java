@@ -19,12 +19,6 @@ services:
     image: marcelocortess/rinha-java:ivf-bbox-v9-test
     command:
       - "-Divf.nprobe=1"
-      - "-Dknn.slots=1"
-      - "-Dserver.backlog=8192"
-      - "-Dserver.inbuf=768"
-      - "-Dserver.outbuf=512"
-      - "-Dserver.header.max=2048"
-      - "-Dserver.body.max=8192"
       - "-Dstartup.warmup.searches=20000"
     volumes:
       - sockets:/sockets
@@ -40,12 +34,6 @@ services:
     image: marcelocortess/rinha-java:ivf-bbox-v9-test
     command:
       - "-Divf.nprobe=1"
-      - "-Dknn.slots=1"
-      - "-Dserver.backlog=8192"
-      - "-Dserver.inbuf=768"
-      - "-Dserver.outbuf=512"
-      - "-Dserver.header.max=2048"
-      - "-Dserver.body.max=8192"
       - "-Dstartup.warmup.searches=20000"
     volumes:
       - sockets:/sockets

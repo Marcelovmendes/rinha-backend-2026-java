@@ -6,7 +6,6 @@ import dev.marcelovitor.rinha.knn.Vectorizer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-import java.util.concurrent.Semaphore;
 
 public final class ScoreHandler implements RequestHandler {
 
@@ -15,10 +14,8 @@ public final class ScoreHandler implements RequestHandler {
     private static final byte[][] RESPONSES       = buildResponses();
     private static final byte[]   ERROR_RESPONSE  = buildHttpResponse(false, "0.0");
 
-    private final Vectorizer            vectorizer;
-    private final FraudDetector         detector;
-    private final Semaphore             knnSlots    = new Semaphore(Integer.getInteger("knn.slots", 1));
-    private final ThreadLocal<short[]>  queryBuffer = ThreadLocal.withInitial(() -> new short[QUERY_DIMS]);
+    private final Vectorizer    vectorizer;
+    private final FraudDetector detector;
 
     public ScoreHandler(Vectorizer vectorizer, FraudDetector detector) {
         this.vectorizer = vectorizer;
@@ -27,16 +24,13 @@ public final class ScoreHandler implements RequestHandler {
 
     @Override
     public byte[] handle(byte[] body, int offset, int length) {
-        knnSlots.acquireUninterruptibly();
         try {
-            short[] q = queryBuffer.get();
+            short[] q = new short[QUERY_DIMS];
             vectorizer.vectorize(body, offset, length, q);
             int frauds = detector.topKFraudCount(q);
             return RESPONSES[frauds];
         } catch (Exception e) {
             return ERROR_RESPONSE;
-        } finally {
-            knnSlots.release();
         }
     }
 
