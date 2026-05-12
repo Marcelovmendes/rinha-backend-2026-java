@@ -1,4 +1,4 @@
-# Rinha de Backend 2026: Detecção de Fraude com Java + IVFPQ
+# Rinha de Backend 2026: Detecção de Fraude com Java + IVF
 
 > Submissão para a [**Rinha de Backend 2026**](https://github.com/zanfranceschi/rinha-de-backend-2026):
 > uma competição em que cada participante constrói um backend dentro de um
@@ -34,47 +34,47 @@ Cliente -> POST /fraud-score -> { "approved": false, "fraud_score": 0.6 }
 - **Unix sockets** entre HAProxy e as APIs (mais rápido que TCP).
 - **Jackson** para JSON: parser tradicional `readValue()` (streaming
   regrediu com Virtual Threads).
-- **Algoritmo: IVFPQ + rerank int16**, explicado abaixo.
+- **Algoritmo: IVF puro + bbox repair (int16, SCALE=10000)**, explicado abaixo.
 
 ---
 
 ### Pipeline de busca vetorial
 
- A solução é um **índice aproximado** que busca + um **rerank** que corrige no fim.
+K-Means agrupa os 3M vetores em 1024 clusters no build. Cada cluster
+tem um centroide e uma bounding box (min/max por dimensão). Tudo é
+armazenado em `int16` com `SCALE=10000`. A busca por request:
 
 ```
-Query (vetor 14-D)
+Query (vetor 14-D, short[14])
    |
    v
-[1] Centroides:    encontra os 24 "bairros" mais próximos da query
-                   (K-Means agrupou os 3M vetores em 1024 bairros).
+[1] Best cluster:   varre os 1024 centroides e escolhe o mais próximo.
    |
    v
-[2] PQ ADC:        em cada bairro, calcula distância aproximada para os
-                   ~3000 vetores via lookup tables (cada vetor codificado
-                   em 7 bytes ao invés de 56). Pega os top-100 candidatos.
+[2] Scan do cluster: percorre os vetores do cluster e mantém um top-5
+                     por distância. Early-exit por dimensão: assim que
+                     a soma parcial passa do pior do top-5, abandona
+                     o vetor.
    |
    v
-[3] Rerank int16:  recalcula distância EXATA (L2) sobre os top-100 com
-                   vetores quantizados em int16 (tentei com int8 mas a precisão era menor).
-                   Pega os 5 mais próximos verdadeiros.
+[3] bbox repair:    para cada outro cluster, calcula a distância da
+                    query até a bounding box. Se essa distância já é
+                    maior que o pior do top-5, o cluster é skippado.
+                    Os que sobram são escaneados igual ao passo [2].
    |
    v
-[4] Decisão:       conta quantos dos top-5 são fraude. 3 ou mais? Bloqueia.
+[4] Decisão:        conta fraudes no top-5. 3 ou mais bloqueia.
 ```
 
 ### Pré-processamento offline
 
-Tentei colocar tudo que dá pra calcular antes do startup:
+Um arquivo único com tudo flat e cluster-major:
 
-| Arquivo | Tamanho | O que é                                         |
-|---|---|-------------------------------------------------|
-| `centroids.bin` | 56 KB | Os 1024 do K-Means                              |
-| `codebooks.bin` | 14 KB | Tabelas do Product Quantizer                    |
-| `cluster_codes.bin` | 21 MB | 3M vetores em códigos PQ de 7 bytes             |
-| `cluster_ids.bin` | 12 MB | Mapeamento de posição para ID original          |
-| `vectors_int16.bin` | 84 MB | 3M vetores quantizados em int16 (rerank)        |
-| `labels.bin` | 375 KB | Bitmap: cada vetor é fraude (1) ou legítimo (0) |
+| Arquivo | Tamanho | O que é |
+|---|---|---|
+| `index.bin` | ~106 MB | header + offsets + centroides + bboxMin/Max + 3M vetores int16 + labels |
+
+Layout interno: `[header][offsets k+1][centroids k×14][bboxMin k×14][bboxMax k×14][rows n×14][labels n]`. Clusters acima de 5000 vetores são divididos no build (cluster splitting).
 
 
 ---
@@ -113,8 +113,8 @@ funciona com Virtual Threads.
 docker build -t marcelocortess/rinha-java:latest .
 ```
 
-O build executa o k-means, treina o Product Quantizer e quantiza tudo
-DEMORA MUITO
+O build executa o k-means, faz cluster splitting, calcula bboxes e
+quantiza tudo em int16. DEMORA MUITO.
 
 ### Subir a stack
 
@@ -160,12 +160,12 @@ src/main/java/dev/marcelovitor/rinha/
 ├── ScoreHandler.java                # parse da request -> vetor -> busca -> resposta
 ├── knn/
 │   ├── Vectorizer.java              # 14-D normalização (regras determinísticas)
-│   ├── IvfIndex.java                # busca: NPROBE -> PQ ADC -> rerank int16 -> top-5
-│   ├── KMeans.java                  # K-Means++ (pro build apenas)
-│   └── ProductQuantizer.java        # quantização vetorial
+│   ├── IvfIndex.java                # busca: best cluster -> scan -> bbox repair -> top-5
+│   ├── IndexHeader.java             # magic, versão, dims, scale do index.bin
+│   └── KMeans.java                  # K-Means++ (pro build apenas)
 ├── store/
 │   ├── DataPreprocessor.java        # offline: gz -> bins
-│   └── IvfBuilder.java              # offline: k-means + PQ + quantização int16
+│   └── IvfBuilder.java              # offline: k-means + cluster splitting + bboxes
 └── model/                           # Jackson + JsonProperty
 ```
 

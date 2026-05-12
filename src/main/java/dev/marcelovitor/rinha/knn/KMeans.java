@@ -10,15 +10,11 @@ public final class KMeans {
     private KMeans() {
     }
 
-    public static float[][] cluster(float[][] vectors, int k, long seed) {
+    public static short[][] cluster(short[][] vectors, int k, long seed) {
         return run(vectors, k, vectors[0].length, seed);
     }
 
-    public static float[][] clusterSub(float[][] subVectors, int k, long seed) {
-        return run(subVectors, k, subVectors[0].length, seed);
-    }
-
-    public static int[][] assign(float[][] vectors, float[][] centroids) {
+    public static int[][] assign(short[][] vectors, short[][] centroids) {
         int n = vectors.length;
         int k = centroids.length;
         int d = centroids[0].length;
@@ -40,16 +36,12 @@ public final class KMeans {
         return inverted;
     }
 
-    public static int nearestSub(float[] sub, float[][] centroids, int d) {
-        return nearestIdx(sub, centroids, d);
-    }
-
-    private static float[][] run(float[][] vectors, int k, int d, long seed) {
+    private static short[][] run(short[][] vectors, int k, int d, long seed) {
         int    n   = vectors.length;
         Random rng = new Random(seed);
 
-        long initStart = System.currentTimeMillis();
-        float[][] centroids = initPlusPlus(vectors, k, d, rng);
+        long      initStart = System.currentTimeMillis();
+        short[][] centroids = initPlusPlus(vectors, k, d, rng);
         System.out.printf("    k-means init done in %,d ms%n", System.currentTimeMillis() - initStart);
         System.out.flush();
 
@@ -64,10 +56,10 @@ public final class KMeans {
         return centroids;
     }
 
-    private static float[][] initPlusPlus(float[][] vectors, int k, int d, Random rng) {
+    private static short[][] initPlusPlus(short[][] vectors, int k, int d, Random rng) {
         int       n         = vectors.length;
-        float[][] centroids = new float[k][d];
-        float[]   distances = new float[n];
+        short[][] centroids = new short[k][d];
+        long[]    distances = new long[n];
 
         int first = rng.nextInt(n);
         System.arraycopy(vectors[first], 0, centroids[0], 0, d);
@@ -78,7 +70,7 @@ public final class KMeans {
 
         for (int kk = 1; kk < k; kk++) {
             double total = 0;
-            for (float dist : distances) total += dist;
+            for (long dist : distances) total += dist;
 
             double threshold  = rng.nextDouble() * total;
             double cumulative = 0;
@@ -93,44 +85,44 @@ public final class KMeans {
             System.arraycopy(vectors[chosen], 0, centroids[kk], 0, d);
 
             for (int i = 0; i < n; i++) {
-                float dist = squaredDist(vectors[i], centroids[kk], d);
+                long dist = squaredDist(vectors[i], centroids[kk], d);
                 if (dist < distances[i]) distances[i] = dist;
             }
         }
         return centroids;
     }
 
-    private static void assignParallel(float[][] vectors, float[][] centroids, int[] assignments, int n, int d) {
+    private static void assignParallel(short[][] vectors, short[][] centroids, int[] assignments, int n, int d) {
         IntStream.range(0, n).parallel().forEach(i -> assignments[i] = nearestIdx(vectors[i], centroids, d));
     }
 
-    private static void updateCentroids(float[][] vectors, float[][] centroids, int[] assignments, int n, int k, int d) {
-        float[][] acc    = new float[k][d];
-        int[]     counts = new int[k];
+    private static void updateCentroids(short[][] vectors, short[][] centroids, int[] assignments, int n, int k, int d) {
+        long[][] acc    = new long[k][d];
+        int[]    counts = new int[k];
 
         for (int i = 0; i < n; i++) {
             int     c = assignments[i];
             counts[c]++;
-            float[] v = vectors[i];
-            float[] a = acc[c];
+            short[] v = vectors[i];
+            long[]  a = acc[c];
             for (int dd = 0; dd < d; dd++) a[dd] += v[dd];
         }
 
         for (int c = 0; c < k; c++) {
-            if (counts[c] > 0) {
-                float   inv = 1f / counts[c];
-                float[] a   = acc[c];
-                float[] cen = centroids[c];
-                for (int dd = 0; dd < d; dd++) cen[dd] = a[dd] * inv;
+            int cnt = counts[c];
+            if (cnt > 0) {
+                long[]  a   = acc[c];
+                short[] cen = centroids[c];
+                for (int dd = 0; dd < d; dd++) cen[dd] = (short) Math.round((double) a[dd] / cnt);
             }
         }
     }
 
-    private static int nearestIdx(float[] vec, float[][] centroids, int d) {
-        int   best     = 0;
-        float bestDist = Float.MAX_VALUE;
+    private static int nearestIdx(short[] vec, short[][] centroids, int d) {
+        int  best     = 0;
+        long bestDist = Long.MAX_VALUE;
         for (int c = 0; c < centroids.length; c++) {
-            float dist = squaredDist(vec, centroids[c], d);
+            long dist = squaredDist(vec, centroids[c], d);
             if (dist < bestDist) {
                 bestDist = dist;
                 best     = c;
@@ -139,11 +131,11 @@ public final class KMeans {
         return best;
     }
 
-    private static float squaredDist(float[] a, float[] b, int d) {
-        float sum = 0f;
+    private static long squaredDist(short[] a, short[] b, int d) {
+        long sum = 0;
         for (int i = 0; i < d; i++) {
-            float diff = a[i] - b[i];
-            sum += diff * diff;
+            int diff = a[i] - b[i];
+            sum += (long) diff * diff;
         }
         return sum;
     }
